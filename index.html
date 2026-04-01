@@ -143,165 +143,211 @@
 </div>
 
 <script>
-  let hole = 1;
-  let strokes = 0;
-  let current, target;
-  let selectedOp = null;
-  let selectedNum = null;
-  let selectedNumBtn = null;
+/* -----------------------------
+   SOLVABLE TARGET GENERATOR
+------------------------------*/
 
-  // Generate 3 UNIQUE numbers
-  let numbers = [];
-  while (numbers.length < 3) {
-    let n = Math.floor(Math.random() * 9) + 1;
-    if (!numbers.includes(n)) numbers.push(n);
+function generateSolvableHole(numbers) {
+  const start = Math.floor(Math.random() * 91) + 10;
+
+  // Weighted path length
+  let steps;
+  if (Math.random() < 0.7) {
+    steps = Math.random() < 0.5 ? 3 : 4;
+  } else {
+    steps = Math.random() < 0.5 ? 1 : 2;
   }
 
-  function newHole() {
-    if (hole > 9) {
-      endGame();
-      return;
+  const ops = [
+    (a, b) => a + b,
+    (a, b) => a - b,
+    (a, b) => a * b,
+    (a, b) => (b !== 0 && a % b === 0 ? a / b : null)
+  ];
+
+  let value = start;
+
+  for (let i = 0; i < steps; i++) {
+    const num = numbers[Math.floor(Math.random() * numbers.length)];
+    const op = ops[Math.floor(Math.random() * ops.length)];
+
+    const next = op(value, num);
+
+    if (next === null || next <= 0 || next > 999) {
+      return generateSolvableHole(numbers);
     }
 
-    document.getElementById("holeNum").textContent = hole;
-    document.getElementById("strokes").textContent = strokes;
+    value = next;
+  }
 
-    // START NUMBER: 10–100
-    current = Math.floor(Math.random() * 91) + 10;
+  let target = value;
 
-    // TARGET NUMBER: 40–300 more or less
-    let diff = Math.floor(Math.random() * 261) + 40;
-
-    if (Math.random() < 0.5) {
-      target = current + diff;
-    } else {
-      target = current - diff;
-      if (target <= 0) target = current + diff;
+  // 25% chance target is lower
+  if (Math.random() < 0.25) {
+    if (target >= start) {
+      const diff = target - start;
+      const lower = start - diff;
+      if (lower > 0) target = lower;
     }
-
-    document.getElementById("currentValue").textContent = current;
-    document.getElementById("targetValue").textContent = target;
-
-    clearSelections();
-    renderNumbers();
   }
 
-  function endGame() {
-    document.getElementById("gameOver").textContent =
-      "Game Over — Total strokes: " + strokes;
+  return { startNumber: start, target };
+}
 
-    document.querySelectorAll("button").forEach(btn => btn.disabled = true);
+/* -----------------------------
+   GAME LOGIC
+------------------------------*/
+
+let hole = 1;
+let strokes = 0;
+let current, target;
+let selectedOp = null;
+let selectedNum = null;
+let selectedNumBtn = null;
+
+// Generate 3 UNIQUE numbers from 2–9 (no 1 allowed)
+let numbers = [];
+while (numbers.length < 3) {
+  let n = Math.floor(Math.random() * 8) + 2; // 2–9
+  if (!numbers.includes(n)) numbers.push(n);
+}
+
+function newHole() {
+  if (hole > 9) {
+    endGame();
+    return;
   }
 
-  function clearSelections() {
-    selectedOp = null;
-    selectedNum = null;
+  document.getElementById("holeNum").textContent = hole;
+  document.getElementById("strokes").textContent = strokes;
 
-    document.querySelectorAll(".opBtn").forEach(btn => btn.classList.remove("selected"));
-    if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
+  const holeData = generateSolvableHole(numbers);
+  current = holeData.startNumber;
+  target = holeData.target;
 
-    const applyBtn = document.getElementById("applyBtn");
-    applyBtn.classList.remove("ready");
-    applyBtn.classList.remove("error");
-  }
+  document.getElementById("currentValue").textContent = current;
+  document.getElementById("targetValue").textContent = target;
 
-  function selectOp(btn, op) {
-    document.querySelectorAll(".opBtn").forEach(b => b.classList.remove("selected"));
-    btn.classList.add("selected");
-    selectedOp = op;
-    updateApplyState();
-  }
+  clearSelections();
+  renderNumbers();
+}
 
-  function renderNumbers() {
-    const container = document.getElementById("nums");
-    container.innerHTML = "";
+function endGame() {
+  document.getElementById("gameOver").textContent =
+    "Game Over — Total strokes: " + strokes;
 
-    numbers.forEach(n => {
-      const btn = document.createElement("button");
-      btn.textContent = n;
-      btn.onclick = () => selectNumber(btn, n);
-      container.appendChild(btn);
-    });
-  }
+  document.querySelectorAll("button").forEach(btn => btn.disabled = true);
+}
 
-  function selectNumber(btn, n) {
-    if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
-    btn.classList.add("selected");
-    selectedNumBtn = btn;
-    selectedNum = n;
-    updateApplyState();
-  }
+function clearSelections() {
+  selectedOp = null;
+  selectedNum = null;
 
-  function updateApplyState() {
-    const applyBtn = document.getElementById("applyBtn");
-    applyBtn.classList.remove("ready");
-    applyBtn.classList.remove("error");
+  document.querySelectorAll(".opBtn").forEach(btn => btn.classList.remove("selected"));
+  if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
 
-    if (!selectedOp || !selectedNum) return;
+  const applyBtn = document.getElementById("applyBtn");
+  applyBtn.classList.remove("ready");
+  applyBtn.classList.remove("error");
+}
 
-    let preview = current;
+function selectOp(btn, op) {
+  document.querySelectorAll(".opBtn").forEach(b => b.classList.remove("selected"));
+  btn.classList.add("selected");
+  selectedOp = op;
+  updateApplyState();
+}
 
-    if (selectedOp === "+") preview = current + selectedNum;
-    if (selectedOp === "-") preview = current - selectedNum;
-    if (selectedOp === "*") preview = current * selectedNum;
+function renderNumbers() {
+  const container = document.getElementById("nums");
+  container.innerHTML = "";
 
-    if (selectedOp === "/") {
-      if (current % selectedNum !== 0) {
-        applyBtn.classList.add("error");
-        return;
-      }
-      preview = current / selectedNum;
-    }
+  numbers.forEach(n => {
+    const btn = document.createElement("button");
+    btn.textContent = n;
+    btn.onclick = () => selectNumber(btn, n);
+    container.appendChild(btn);
+  });
+}
 
-    if (preview <= 0) {
+function selectNumber(btn, n) {
+  if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
+  btn.classList.add("selected");
+  selectedNumBtn = btn;
+  selectedNum = n;
+  updateApplyState();
+}
+
+function updateApplyState() {
+  const applyBtn = document.getElementById("applyBtn");
+  applyBtn.classList.remove("ready");
+  applyBtn.classList.remove("error");
+
+  if (!selectedOp || !selectedNum) return;
+
+  let preview = current;
+
+  if (selectedOp === "+") preview = current + selectedNum;
+  if (selectedOp === "-") preview = current - selectedNum;
+  if (selectedOp === "*") preview = current * selectedNum;
+
+  if (selectedOp === "/") {
+    if (current % selectedNum !== 0) {
       applyBtn.classList.add("error");
       return;
     }
-
-    applyBtn.classList.add("ready");
+    preview = current / selectedNum;
   }
 
-  function applySelection() {
-    const applyBtn = document.getElementById("applyBtn");
-
-    if (applyBtn.classList.contains("error")) {
-      alert("Invalid move");
-      return;
-    }
-
-    if (!selectedOp || !selectedNum) {
-      alert("Choose an operation and a number first");
-      return;
-    }
-
-    let preview = current;
-
-    if (selectedOp === "+") preview = current + selectedNum;
-    if (selectedOp === "-") preview = current - selectedNum;
-    if (selectedOp === "*") preview = current * selectedNum;
-    if (selectedOp === "/") preview = current / selectedNum;
-
-    strokes++;
-    document.getElementById("strokes").textContent = strokes;
-
-    current = preview;
-    document.getElementById("currentValue").textContent = current;
-
-    clearSelections();
-
-    if (current === target) {
-      hole++;
-      newHole();
-    }
+  if (preview <= 0) {
+    applyBtn.classList.add("error");
+    return;
   }
 
-  function skipHole() {
-    strokes += 10;
+  applyBtn.classList.add("ready");
+}
+
+function applySelection() {
+  const applyBtn = document.getElementById("applyBtn");
+
+  if (applyBtn.classList.contains("error")) {
+    alert("Invalid move");
+    return;
+  }
+
+  if (!selectedOp || !selectedNum) {
+    alert("Choose an operation and a number first");
+    return;
+  }
+
+  let preview = current;
+
+  if (selectedOp === "+") preview = current + selectedNum;
+  if (selectedOp === "-") preview = current - selectedNum;
+  if (selectedOp === "*") preview = current * selectedNum;
+  if (selectedOp === "/") preview = current / selectedNum;
+
+  strokes++;
+  document.getElementById("strokes").textContent = strokes;
+
+  current = preview;
+  document.getElementById("currentValue").textContent = current;
+
+  clearSelections();
+
+  if (current === target) {
     hole++;
     newHole();
   }
+}
 
+function skipHole() {
+  strokes += 10;
+  hole++;
   newHole();
+}
+
+newHole();
 </script>
 
 </body>
