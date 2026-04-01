@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Hole in Sum</title>
+
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  #game { max-width: 400px; }
+
+  .boxRow { display:flex; gap:20px; margin:20px 0; }
+
+  .box {
+    width:150px;
+    height:150px;
+    border-radius:12px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    font-weight:bold;
+  }
+
+  .currentBox { background:#ffd9a6; color:#a65300; }
+  .targetBox { background:#b6f7a5; color:#0b4f0b; }
+
+  .value { font-size:48px; color:black; }
+
+  #ops button, #nums button {
+    font-size:24px;
+    margin:5px;
+    padding:10px 20px;
+    cursor: pointer;
+  }
+
+  .selected {
+    background-color:#c8ffbf !important;
+  }
+
+  #applyBtn, #skipBtn {
+    margin-top:20px;
+    padding:10px 20px;
+    font-size:18px;
+    cursor: pointer;
+  }
+
+  /* Apply highlight states */
+  #applyBtn.ready {
+    background-color:#c8ffbf;
+  }
+
+  #applyBtn.error {
+    background-color:#ff8a8a;
+  }
+
+  .label {
+    font-size:22px;
+    margin-bottom:8px;
+  }
+
+  .currentLabel { color:#a65300; }
+  .targetLabel { color:#0b4f0b; }
+
+  #gameOver {
+    font-size:28px;
+    font-weight:bold;
+    margin-top:20px;
+    color:#333;
+  }
+</style>
+</head>
+
+<body>
+
+<div id="game">
+  <h2>Hole in Sum</h2>
+  <div id="holeInfo">Hole <span id="holeNum">1</span>/9 — Strokes: <span id="strokes">0</span></div>
+
+  <div class="boxRow">
+    <div class="box currentBox">
+      <div class="label currentLabel">Current</div>
+      <div class="value" id="currentValue"></div>
+    </div>
+
+    <div class="box targetBox">
+      <div class="label targetLabel">Target</div>
+      <div class="value" id="targetValue"></div>
+    </div>
+  </div>
+
+  <h3>Operation</h3>
+  <div id="ops">
+    <button class="opBtn" onclick="selectOp(this, '+')">+</button>
+    <button class="opBtn" onclick="selectOp(this, '-')">−</button>
+    <button class="opBtn" onclick="selectOp(this, '*')">×</button>
+    <button class="opBtn" onclick="selectOp(this, '/')">÷</button>
+  </div>
+
+  <h3>Your Numbers (Reusable)</h3>
+  <div id="nums"></div>
+
+  <button id="applyBtn" onclick="applySelection()">Apply</button>
+  <button id="skipBtn" onclick="skipHole()">Skip Hole (+10)</button>
+
+  <div id="gameOver"></div>
+</div>
+
+<script>
+  let hole = 1;
+  let strokes = 0;
+  let current, target;
+  let selectedOp = null;
+  let selectedNum = null;
+  let selectedNumBtn = null;
+
+  // Generate 3 UNIQUE numbers
+  let numbers = [];
+  while (numbers.length < 3) {
+    let n = Math.floor(Math.random() * 9) + 1;
+    if (!numbers.includes(n)) numbers.push(n);
+  }
+
+  function newHole() {
+    if (hole > 9) {
+      endGame();
+      return;
+    }
+
+    document.getElementById("holeNum").textContent = hole;
+    document.getElementById("strokes").textContent = strokes;
+
+    // START NUMBER: 10–100
+    current = Math.floor(Math.random() * 91) + 10;
+
+    // TARGET NUMBER: 40–300 more or less
+    let diff = Math.floor(Math.random() * 261) + 40;
+
+    if (Math.random() < 0.5) {
+      target = current + diff;
+    } else {
+      target = current - diff;
+      if (target <= 0) target = current + diff;
+    }
+
+    document.getElementById("currentValue").textContent = current;
+    document.getElementById("targetValue").textContent = target;
+
+    clearSelections();
+    renderNumbers();
+  }
+
+  function endGame() {
+    document.getElementById("gameOver").textContent =
+      "Game Over — Total strokes: " + strokes;
+
+    document.querySelectorAll("button").forEach(btn => btn.disabled = true);
+  }
+
+  function clearSelections() {
+    selectedOp = null;
+    selectedNum = null;
+
+    document.querySelectorAll(".opBtn").forEach(btn => btn.classList.remove("selected"));
+    if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
+
+    const applyBtn = document.getElementById("applyBtn");
+    applyBtn.classList.remove("ready");
+    applyBtn.classList.remove("error");
+  }
+
+  function selectOp(btn, op) {
+    document.querySelectorAll(".opBtn").forEach(b => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    selectedOp = op;
+    updateApplyState();
+  }
+
+  function renderNumbers() {
+    const container = document.getElementById("nums");
+    container.innerHTML = "";
+
+    numbers.forEach(n => {
+      const btn = document.createElement("button");
+      btn.textContent = n;
+      btn.onclick = () => selectNumber(btn, n);
+      container.appendChild(btn);
+    });
+  }
+
+  function selectNumber(btn, n) {
+    if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
+    btn.classList.add("selected");
+    selectedNumBtn = btn;
+    selectedNum = n;
+    updateApplyState();
+  }
+
+  function updateApplyState() {
+    const applyBtn = document.getElementById("applyBtn");
+    applyBtn.classList.remove("ready");
+    applyBtn.classList.remove("error");
+
+    if (!selectedOp || !selectedNum) return;
+
+    let preview = current;
+
+    if (selectedOp === "+") preview = current + selectedNum;
+    if (selectedOp === "-") preview = current - selectedNum;
+    if (selectedOp === "*") preview = current * selectedNum;
+
+    if (selectedOp === "/") {
+      if (current % selectedNum !== 0) {
+        applyBtn.classList.add("error");
+        return;
+      }
+      preview = current / selectedNum;
+    }
+
+    if (preview <= 0) {
+      applyBtn.classList.add("error");
+      return;
+    }
+
+    applyBtn.classList.add("ready");
+  }
+
+  function applySelection() {
+    const applyBtn = document.getElementById("applyBtn");
+
+    if (applyBtn.classList.contains("error")) {
+      alert("Invalid move");
+      return;
+    }
+
+    if (!selectedOp || !selectedNum) {
+      alert("Choose an operation and a number first");
+      return;
+    }
+
+    let preview = current;
+
+    if (selectedOp === "+") preview = current + selectedNum;
+    if (selectedOp === "-") preview = current - selectedNum;
+    if (selectedOp === "*") preview = current * selectedNum;
+    if (selectedOp === "/") preview = current / selectedNum;
+
+    strokes++;
+    document.getElementById("strokes").textContent = strokes;
+
+    current = preview;
+    document.getElementById("currentValue").textContent = current;
+
+    clearSelections();
+
+    if (current === target) {
+      hole++;
+      newHole();
+    }
+  }
+
+  function skipHole() {
+    strokes += 10;
+    hole++;
+    newHole();
+  }
+
+  newHole();
+</script>
+
+</body>
+</html>
