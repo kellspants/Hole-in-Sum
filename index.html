@@ -362,11 +362,13 @@ function endGame() {
   document.getElementById("gameOver").textContent =
     "Game Over — Total strokes: " + strokes;
 
-  document.querySelectorAll("button").forEach(btn => btn.disabled = true);
+  // Disable only game buttons, not popup buttons
+  document.querySelectorAll("#game button").forEach(btn => btn.disabled = true);
 
   // Show name popup
   document.getElementById("namePopup").style.display = "block";
 }
+
 
 function clearSelections() {
   selectedOp = null;
