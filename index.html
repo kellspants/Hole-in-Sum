@@ -225,11 +225,16 @@ function saveScore(name, strokes) {
   const today = new Date().toISOString().split("T")[0];
   const scoreRef = ref(db, "leaderboard/" + today + "/" + name);
 
+  console.log("Attempting to save:", name, strokes);
+
   return set(scoreRef, {
     strokes: strokes,
     timestamp: Date.now()
-  });
+  })
+  .then(() => console.log("Saved OK"))
+  .catch(err => console.error("Firebase write error:", err));
 }
+
 
 /* ---------------------------------------------------------
    LOAD LEADERBOARD
