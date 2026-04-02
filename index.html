@@ -6,6 +6,72 @@
 <title>Hole in Sum</title>
 
 <style>
+  #openingScreen {
+  max-width: 420px;
+  width: 100%;
+  background: white;
+  padding: 25px;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  text-align: center;
+  margin-top: 40px;
+}
+
+#openingScreen .title {
+  font-size: 36px;
+  font-weight: 800;
+  color: #2e8b57;
+  margin-bottom: 10px;
+}
+
+#openingScreen .subtitle {
+  font-size: 16px;
+  color: #444;
+  margin-bottom: 25px;
+}
+
+.menuOption {
+  background: #f5f5f5;
+  padding: 15px;
+  border-radius: 12px;
+  margin-bottom: 15px;
+  cursor: pointer;
+  text-align: left;
+  border: 2px solid transparent;
+  transition: 0.2s;
+}
+
+.menuOption:hover {
+  border-color: #2e8b57;
+  background: #eaffea;
+}
+
+.menuOption .label {
+  font-size: 20px;
+  font-weight: 700;
+  color: #2e8b57;
+}
+
+.menuOption .tag {
+  background: #ff4444;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.menuOption .desc {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: #555;
+}
+
+/* Hide game until mode selected */
+#game {
+  display: none;
+}
+
   body {
     font-family: Arial, sans-serif;
     display: flex;
@@ -42,6 +108,26 @@
     width: 40px;
     height: 40px;
   }
+<div id="openingScreen">
+  <h1 class="title">Math Golf</h1>
+  <p class="subtitle">Combine your numbers with +, −, ×, ÷ to hit the target in as few strokes as possible.</p>
+
+  <div class="menuOption" onclick="startGame('daily')">
+    <span class="label">Daily Challenge</span>
+    <span class="tag">NEW</span>
+    <p class="desc">Same numbers for everyone today. Compete on the global leaderboard.</p>
+  </div>
+
+  <div class="menuOption" onclick="startGame('practice')">
+    <span class="label">Daily Practice</span>
+    <p class="desc">Today's challenge with undo — practice without pressure.</p>
+  </div>
+
+  <div class="menuOption" onclick="startGame('free')">
+    <span class="label">Free Play</span>
+    <p class="desc">Choose your own 3 numbers and play at your own pace.</p>
+  </div>
+</div>
 
   /* GAME CONTAINER */
   #game {
