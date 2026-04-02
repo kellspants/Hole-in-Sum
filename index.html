@@ -7,6 +7,7 @@
 <link rel="icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/5/5f/Golf_flag_icon.png">
 
 <style>
+
 /* OPENING SCREEN */
 #openingScreen {
   max-width: 420px;
@@ -74,7 +75,7 @@
   display: none;
 }
 
-/* BODY + GAME STYLES */
+/* BODY */
 body {
   font-family: Arial, sans-serif;
   display: flex;
@@ -88,7 +89,7 @@ body {
 
 /* HEADER */
 header {
-  display: flex;
+  display: none; /* hidden until game starts */
   align-items: center;
   justify-content: center;
   gap: 15px;
@@ -195,6 +196,63 @@ h3 {
   margin-top: 25px;
   color: #333;
 }
+
+/* LEADERBOARD */
+#leaderboard {
+  display: none; /* hidden until game starts */
+  margin-top: 30px;
+  padding: 20px;
+  border-radius: 12px;
+  width: 320px;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+#leaderboard h2 {
+  margin-top: 0;
+  color: #2e8b57;
+}
+
+#leaderboardList div {
+  padding: 6px 0;
+  font-size: 18px;
+}
+
+/* NAME POPUP */
+#namePopup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+  display: none;
+  text-align: center;
+  z-index: 999;
+}
+
+#namePopup input {
+  font-size: 20px;
+  padding: 10px;
+  width: 220px;
+  border-radius: 8px;
+  border: 2px solid #ccc;
+}
+
+#namePopup button {
+  margin-top: 15px;
+  padding: 10px 20px;
+  font-size: 18px;
+  border-radius: 8px;
+  border: none;
+  background: #2e8b57;
+  color: white;
+  cursor: pointer;
+}
+
 </style>
 </head>
 
@@ -222,62 +280,34 @@ h3 {
   </div>
 </div>
 
-<!-- YOUR GAME HTML GOES HERE -->
-<div id="game">
-  <!-- existing game content -->
-</div>
-
-<script>
-function startGame(mode) {
-  document.getElementById("openingScreen").style.display = "none";
-  document.getElementById("game").style.display = "block";
-
-  // Start your existing game logic
-  if (typeof initGame === "function") {
-    initGame();
-  }
-}
-</script>
-
-
-
-
-<body>
-
-<!-- HEADER BANNER -->
+<!-- HEADER -->
 <header>
-  <img class="flag" src="https://upload.wikimedia.org/wikipedia/commons/5/5f/Golf_flag_icon.png" alt="Golf Flag">
+  <img class="flag" src="https://upload.wikimedia.org/wikipedia/commons/5/5f/Golf_flag_icon.png">
   <h1>Hole in Sum</h1>
 </header>
 
+<!-- GAME -->
 <div id="game">
   <div id="holeInfo">Hole <span id="holeNum">1</span>/9 — Strokes: <span id="strokes">0</span></div>
 
   <div class="boxRow">
     <div class="box currentBox">
-      <div class="label currentLabel">Current</div>
       <div class="value" id="currentValue"></div>
     </div>
 
     <div class="box targetBox">
-      <div class="label targetLabel">Target</div>
       <div class="value" id="targetValue"></div>
     </div>
   </div>
 
   <h3>Operation</h3>
-  <div id="ops">
-    <button class="opBtn" onclick="selectOp(this, '+')">+</button>
-    <button class="opBtn" onclick="selectOp(this, '-')">−</button>
-    <button class="opBtn" onclick="selectOp(this, '*')">×</button>
-    <button class="opBtn" onclick="selectOp(this, '/')">÷</button>
-  </div>
+  <div id="ops"></div>
 
   <h3>Your Numbers (Reusable)</h3>
   <div id="nums"></div>
 
-  <button id="applyBtn" onclick="applySelection()">Apply</button>
-  <button id="skipBtn" onclick="skipHole()">Skip Hole (+10)</button>
+  <button id="applyBtn">Apply</button>
+  <button id="skipBtn">Skip Hole (+10)</button>
 
   <div id="gameOver"></div>
 </div>
@@ -296,15 +326,11 @@ function startGame(mode) {
 </div>
 
 <script type="module">
-/* ---------------------------------------------------------
-   FIREBASE IMPORTS
---------------------------------------------------------- */
+/* FIREBASE IMPORTS */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
 
-/* ---------------------------------------------------------
-   FIREBASE CONFIG
---------------------------------------------------------- */
+/* FIREBASE CONFIG */
 const firebaseConfig = {
   apiKey: "AIzaSyAsvCV3B6U3iuyl2B4hD6s-31ow0taZj4A",
   authDomain: "hole-in-sum-4a55e.firebaseapp.com",
@@ -319,272 +345,31 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-/* ---------------------------------------------------------
-   SAVE SCORE
---------------------------------------------------------- */
+/* SAVE SCORE */
 function saveScore(name, strokes) {
   const today = new Date().toISOString().split("T")[0];
   const scoreRef = ref(db, "leaderboard/" + today + "/" + name);
 
-  console.log("Attempting to save:", name, strokes);
-
   return set(scoreRef, {
     strokes: strokes,
     timestamp: Date.now()
-  })
-  .then(() => console.log("Saved OK"))
-  .catch(err => console.error("Firebase write error:", err));
-}
-
-
-/* ---------------------------------------------------------
-   LOAD LEADERBOARD
---------------------------------------------------------- */
-async function loadLeaderboard() {
-  const today = new Date().toISOString().split("T")[0];
-  const snapshot = await get(child(ref(db), "leaderboard/" + today));
-
-  if (!snapshot.exists()) {
-    document.getElementById("leaderboardList").innerHTML = "No scores yet.";
-    return;
-  }
-
-  const data = snapshot.val();
-  const sorted = Object.entries(data)
-    .map(([name, entry]) => ({ name, strokes: entry.strokes }))
-    .sort((a, b) => a.strokes - b.strokes);
-
-  document.getElementById("leaderboardList").innerHTML =
-    sorted.map(s => `<div><strong>${s.name}</strong>: ${s.strokes}</div>`).join("");
-}
-
-loadLeaderboard();
-
-/* ---------------------------------------------------------
-   NAME POPUP + FINAL SUBMISSION
---------------------------------------------------------- */
-window.submitFinalScore = async function () {
-  const name = document.getElementById("playerNameInput").value.trim();
-
-  if (!name) {
-    alert("Please enter your first name");
-    return;
-  }
-
-  await saveScore(name, strokes);
-  document.getElementById("namePopup").style.display = "none";
-  loadLeaderboard();
-};
-</script>
-
-<script>
-/* -----------------------------
-   SOLVABLE TARGET GENERATOR
-------------------------------*/
-
-function generateSolvableHole(numbers) {
-  const start = Math.floor(Math.random() * 91) + 10;
-
-  let steps;
-  if (Math.random() < 0.7) {
-    steps = Math.random() < 0.5 ? 3 : 4;
-  } else {
-    steps = Math.random() < 0.5 ? 1 : 2;
-  }
-
-  const ops = [
-    (a, b) => a + b,
-    (a, b) => a - b,
-    (a, b) => a * b,
-    (a, b) => (b !== 0 && a % b === 0 ? a / b : null)
-  ];
-
-  let value = start;
-
-  for (let i = 0; i < steps; i++) {
-    const num = numbers[Math.floor(Math.random() * numbers.length)];
-    const op = ops[Math.floor(Math.random() * ops.length)];
-
-    const next = op(value, num);
-
-    if (next === null || next <= 0 || next > 999) {
-      return generateSolvableHole(numbers);
-    }
-
-    value = next;
-  }
-
-  let target = value;
-
-  if (Math.random() < 0.25) {
-    if (target >= start) {
-      const diff = target - start;
-      const lower = start - diff;
-      if (lower > 0) target = lower;
-    }
-  }
-
-  return { startNumber: start, target };
-}
-
-/* -----------------------------
-   GAME LOGIC
-------------------------------*/
-
-let hole = 1;
-let strokes = 0;
-let current, target;
-let selectedOp = null;
-let selectedNum = null;
-let selectedNumBtn = null;
-
-let numbers = [];
-while (numbers.length < 3) {
-  let n = Math.floor(Math.random() * 8) + 2;
-  if (!numbers.includes(n)) numbers.push(n);
-}
-
-function newHole() {
-  if (hole > 9) {
-    endGame();
-    return;
-  }
-
-  document.getElementById("holeNum").textContent = hole;
-  document.getElementById("strokes").textContent = strokes;
-
-  const holeData = generateSolvableHole(numbers);
-  current = holeData.startNumber;
-  target = holeData.target;
-
-  document.getElementById("currentValue").textContent = current;
-  document.getElementById("targetValue").textContent = target;
-
-  clearSelections();
-  renderNumbers();
-}
-
-function endGame() {
-  document.getElementById("gameOver").textContent =
-    "Game Over — Total strokes: " + strokes;
-
-  // Disable only game buttons, not popup buttons
-  document.querySelectorAll("#game button").forEach(btn => btn.disabled = true);
-
-  // Show name popup
-  document.getElementById("namePopup").style.display = "block";
-}
-
-
-function clearSelections() {
-  selectedOp = null;
-  selectedNum = null;
-
-  document.querySelectorAll(".opBtn").forEach(btn => btn.classList.remove("selected"));
-  if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
-
-  const applyBtn = document.getElementById("applyBtn");
-  applyBtn.classList.remove("ready");
-  applyBtn.classList.remove("error");
-}
-
-function selectOp(btn, op) {
-  document.querySelectorAll(".opBtn").forEach(b => b.classList.remove("selected"));
-  btn.classList.add("selected");
-  selectedOp = op;
-  updateApplyState();
-}
-
-function renderNumbers() {
-  const container = document.getElementById("nums");
-  container.innerHTML = "";
-
-  numbers.forEach(n => {
-    const btn = document.createElement("button");
-    btn.textContent = n;
-    btn.onclick = () => selectNumber(btn, n);
-    container.appendChild(btn);
   });
 }
 
-function selectNumber(btn, n) {
-  if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
-  btn.classList.add("selected");
-  selectedNumBtn = btn;
-  selectedNum = n;
-  updateApplyState();
-}
+</script>
 
-function updateApplyState() {
-  const applyBtn = document.getElementById("applyBtn");
-  applyBtn.classList.remove("ready");
-  applyBtn.classList.remove("error");
+<script>
+/* OPENING SCREEN LOGIC */
+function startGame(mode) {
+  document.getElementById("openingScreen").style.display = "none";
+  document.querySelector("header").style.display = "flex";
+  document.getElementById("game").style.display = "block";
+  document.getElementById("leaderboard").style.display = "block";
 
-  if (!selectedOp || !selectedNum) return;
-
-  let preview = current;
-
-  if (selectedOp === "+") preview = current + selectedNum;
-  if (selectedOp === "-") preview = current - selectedNum;
-  if (selectedOp === "*") preview = current * selectedNum;
-
-  if (selectedOp === "/") {
-    if (current % selectedNum !== 0) {
-      applyBtn.classList.add("error");
-      return;
-    }
-    preview = current / selectedNum;
-  }
-
-  if (preview <= 0) {
-    applyBtn.classList.add("error");
-    return;
-  }
-
-  applyBtn.classList.add("ready");
-}
-
-function applySelection() {
-  const applyBtn = document.getElementById("applyBtn");
-
-  if (applyBtn.classList.contains("error")) {
-    alert("Invalid move");
-    return;
-  }
-
-  if (!selectedOp || !selectedNum) {
-    alert("Choose an operation and a number first");
-    return;
-  }
-
-  let preview = current;
-
-  if (selectedOp === "+") preview = current + selectedNum;
-  if (selectedOp === "-") preview = current - selectedNum;
-  if (selectedOp === "*") preview = current * selectedNum;
-  if (selectedOp === "/") preview = current / selectedNum;
-
-  strokes++;
-  document.getElementById("strokes").textContent = strokes;
-
-  current = preview;
-  document.getElementById("currentValue").textContent = current;
-
-  clearSelections();
-
-  if (current === target) {
-    hole++;
-    newHole();
+  if (typeof initGame === "function") {
+    initGame(mode);
   }
 }
-
-function skipHole() {
-  strokes += 10;
-  hole++;
-  newHole();
-}
-
-newHole();
 </script>
 
 </body>
