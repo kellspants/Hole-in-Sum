@@ -444,26 +444,30 @@ function generateDailyNumbers() {
 
 function generateSolvableHole(nums, rand) {
   let attempts = 0;
-  while (attempts < 200) {
+  while (attempts < 300) {
     attempts++;
 
-    const start = Math.floor(rand() * 91) + 10;
+    const start = Math.floor(rand() * 91) + 10; // 10–100
 
-    let steps = rand() < 0.7
-      ? (rand() < 0.5 ? 3 : 4)
-      : (rand() < 0.5 ? 1 : 2);
+    // NEW: heavily bias toward 3–4 step holes
+    let r = rand();
+    let steps;
+    if (r < 0.50) steps = 3;        // 50%
+    else if (r < 0.85) steps = 4;   // 35%
+    else if (r < 0.95) steps = 2;   // 10%
+    else steps = 1;                 // 5%
 
     let value = start;
     let valid = true;
 
     for (let i = 0; i < steps; i++) {
       const num = nums[Math.floor(rand() * nums.length)];
-      const r = Math.floor(rand() * 4);
+      const op = Math.floor(rand() * 4);
 
       let next;
-      if (r === 0) next = value + num;
-      else if (r === 1) next = value - num;
-      else if (r === 2) next = value * num;
+      if (op === 0) next = value + num;
+      else if (op === 1) next = value - num;
+      else if (op === 2) next = value * num;
       else {
         if (num === 0 || value % num !== 0) { valid = false; break; }
         next = value / num;
@@ -477,19 +481,28 @@ function generateSolvableHole(nums, rand) {
 
     let tgt = value;
 
+    // Optional symmetry flip
     if (rand() < 0.25 && tgt >= start) {
       const lower = start - (tgt - start);
       if (lower > 0) tgt = lower;
     }
 
+    // NEW: ensure start != target
     if (tgt === start) continue;
 
+    // NEW: ensure target differs by at least 50
+    if (Math.abs(tgt - start) < 50) continue;
+
+    // Par based on steps
     const par = steps <= 2 ? 2 : (steps === 3 ? 3 : 4);
+
     return { startNumber: start, target: tgt, par, steps };
   }
 
-  return { startNumber: 20, target: 35, par: 3, steps: 3 };
+  // fallback
+  return { startNumber: 20, target: 80, par: 3, steps: 3 };
 }
+
 
 function generateDailyCourse(nums) {
   const rand = seededRandom(getDailySeed());
