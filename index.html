@@ -7,7 +7,6 @@
 <link rel="icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/5/5f/Golf_flag_icon.png">
 
 <style>
-
 /* OPENING SCREEN */
 #openingScreen {
   max-width: 420px;
@@ -71,7 +70,7 @@
 }
 
 /* Hide game until mode selected */
-#game {
+#game, header, #leaderboard {
   display: none;
 }
 
@@ -89,7 +88,6 @@ body {
 
 /* HEADER */
 header {
-  display: none; /* hidden until game starts */
   align-items: center;
   justify-content: center;
   gap: 15px;
@@ -199,7 +197,6 @@ h3 {
 
 /* LEADERBOARD */
 #leaderboard {
-  display: none; /* hidden until game starts */
   margin-top: 30px;
   padding: 20px;
   border-radius: 12px;
@@ -252,7 +249,6 @@ h3 {
   color: white;
   cursor: pointer;
 }
-
 </style>
 </head>
 
@@ -325,12 +321,11 @@ h3 {
   <button onclick="submitFinalScore()">Submit</button>
 </div>
 
+<!-- FIREBASE -->
 <script type="module">
-/* FIREBASE IMPORTS */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
 
-/* FIREBASE CONFIG */
 const firebaseConfig = {
   apiKey: "AIzaSyAsvCV3B6U3iuyl2B4hD6s-31ow0taZj4A",
   authDomain: "hole-in-sum-4a55e.firebaseapp.com",
@@ -345,7 +340,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-/* SAVE SCORE */
 function saveScore(name, strokes) {
   const today = new Date().toISOString().split("T")[0];
   const scoreRef = ref(db, "leaderboard/" + today + "/" + name);
@@ -356,19 +350,246 @@ function saveScore(name, strokes) {
   });
 }
 
+async function loadLeaderboard() {
+  const today = new Date().toISOString().split("T")[0];
+  const snapshot = await get(child(ref(db), "leaderboard/" + today));
+
+  if (!snapshot.exists()) {
+    document.getElementById("leaderboardList").innerHTML = "No scores yet.";
+    return;
+  }
+
+  const data = snapshot.val();
+  const sorted = Object.entries(data)
+    .map(([name, entry]) => ({ name, strokes: entry.strokes }))
+    .sort((a, b) => a.strokes - b.strokes);
+
+  document.getElementById("leaderboardList").innerHTML =
+    sorted.map(s => `<div><strong>${s.name}</strong>: ${s.strokes}</div>`).join("");
+}
+
+loadLeaderboard();
+
+window.submitFinalScore = async function () {
+  const name = document.getElementById("playerNameInput").value.trim();
+
+  if (!name) {
+    alert("Please enter your first name");
+    return;
+  }
+
+  await saveScore(name, strokes);
+  document.getElementById("namePopup").style.display = "none";
+  loadLeaderboard();
+};
 </script>
 
+<!-- GAME LOGIC -->
 <script>
-/* OPENING SCREEN LOGIC */
 function startGame(mode) {
   document.getElementById("openingScreen").style.display = "none";
   document.querySelector("header").style.display = "flex";
   document.getElementById("game").style.display = "block";
   document.getElementById("leaderboard").style.display = "block";
 
-  if (typeof initGame === "function") {
-    initGame(mode);
+  newHole();
+}
+
+/* SOLVABLE TARGET GENERATOR */
+function generateSolvableHole(numbers) {
+  const start = Math.floor(Math.random() * 91) + 10;
+
+  let steps;
+  if (Math.random() < 0.7) {
+    steps = Math.random() < 0.5 ? 3 : 4;
+  } else {
+    steps = Math.random() < 0.5 ? 1 : 2;
   }
+
+  const ops = [
+    (a, b) => a + b,
+    (a, b) => a - b,
+    (a, b) => a * b,
+    (a, b) => (b !== 0 && a % b === 0 ? a / b : null)
+  ];
+
+  let value = start;
+
+  for (let i = 0; i < steps; i++) {
+    const num = numbers[Math.floor(Math.random() * numbers.length)];
+    const op = ops[Math.floor(Math.random() * ops.length)];
+
+    const next = op(value, num);
+
+    if (next === null || next <= 0 || next > 999) {
+      return generateSolvableHole(numbers);
+    }
+
+    value = next;
+  }
+
+  let target = value;
+
+  if (Math.random() < 0.25) {
+    if (target >= start) {
+      const diff = target - start;
+      const lower = start - diff;
+      if (lower > 0) target = lower;
+    }
+  }
+
+  return { startNumber: start, target };
+}
+
+/* GAME LOGIC */
+let hole = 1;
+let strokes = 0;
+let current, target;
+let selectedOp = null;
+let selectedNum = null;
+let selectedNumBtn = null;
+
+let numbers = [];
+while (numbers.length < 3) {
+  let n = Math.floor(Math.random() * 8) + 2;
+  if (!numbers.includes(n)) numbers.push(n);
+}
+
+function newHole() {
+  if (hole > 9) {
+    endGame();
+    return;
+  }
+
+  document.getElementById("holeNum").textContent = hole;
+  document.getElementById("strokes").textContent = strokes;
+
+  const holeData = generateSolvableHole(numbers);
+  current = holeData.startNumber;
+  target = holeData.target;
+
+  document.getElementById("currentValue").textContent = current;
+  document.getElementById("targetValue").textContent = target;
+
+  clearSelections();
+  renderNumbers();
+}
+
+function endGame() {
+  document.getElementById("gameOver").textContent =
+    "Game Over — Total strokes: " + strokes;
+
+  document.querySelectorAll("#game button").forEach(btn => btn.disabled = true);
+
+  document.getElementById("namePopup").style.display = "block";
+}
+
+function clearSelections() {
+  selectedOp = null;
+  selectedNum = null;
+
+  document.querySelectorAll(".opBtn").forEach(btn => btn.classList.remove("selected"));
+  if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
+
+  const applyBtn = document.getElementById("applyBtn");
+  applyBtn.classList.remove("ready");
+  applyBtn.classList.remove("error");
+}
+
+function selectOp(btn, op) {
+  document.querySelectorAll(".opBtn").forEach(b => b.classList.remove("selected"));
+  btn.classList.add("selected");
+  selectedOp = op;
+  updateApplyState();
+}
+
+function renderNumbers() {
+  const container = document.getElementById("nums");
+  container.innerHTML = "";
+
+  numbers.forEach(n => {
+    const btn = document.createElement("button");
+    btn.textContent = n;
+    btn.onclick = () => selectNumber(btn, n);
+    container.appendChild(btn);
+  });
+}
+
+function selectNumber(btn, n) {
+  if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
+  btn.classList.add("selected");
+  selectedNumBtn = btn;
+  selectedNum = n;
+  updateApplyState();
+}
+
+function updateApplyState() {
+  const applyBtn = document.getElementById("applyBtn");
+  applyBtn.classList.remove("ready");
+  applyBtn.classList.remove("error");
+
+  if (!selectedOp || !selectedNum) return;
+
+  let preview = current;
+
+  if (selectedOp === "+") preview = current + selectedNum;
+  if (selectedOp === "-") preview = current - selectedNum;
+  if (selectedOp === "*") preview = current * selectedNum;
+
+  if (selectedOp === "/") {
+    if (current % selectedNum !== 0) {
+      applyBtn.classList.add("error");
+      return;
+    }
+    preview = current / selectedNum;
+  }
+
+  if (preview <= 0) {
+    applyBtn.classList.add("error");
+    return;
+  }
+
+  applyBtn.classList.add("ready");
+}
+
+function applySelection() {
+  const applyBtn = document.getElementById("applyBtn");
+
+  if (applyBtn.classList.contains("error")) {
+    alert("Invalid move");
+    return;
+  }
+
+  if (!selectedOp || !selectedNum) {
+    alert("Choose an operation and a number first");
+    return;
+  }
+
+  let preview = current;
+
+  if (selectedOp === "+") preview = current + selectedNum;
+  if (selectedOp === "-") preview = current - selectedNum;
+  if (selectedOp === "*") preview = current * selectedNum;
+  if (selectedOp === "/") preview = current / selectedNum;
+
+  strokes++;
+  document.getElementById("strokes").textContent = strokes;
+
+  current = preview;
+  document.getElementById("currentValue").textContent = current;
+
+  clearSelections();
+
+  if (current === target) {
+    hole++;
+    newHole();
+  }
+}
+
+function skipHole() {
+  strokes += 10;
+  hole++;
+  newHole();
 }
 </script>
 
