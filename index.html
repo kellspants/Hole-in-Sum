@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Math Golf</title>
+<title>Math Golf – Hole in Sum</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/5/5f/Golf_flag_icon.png">
 
 <style>
@@ -93,7 +94,7 @@ header {
 }
 
 header h1 {
-  font-size: 36px;
+  font-size: 32px;
   color: #2e8b57;
   margin: 0;
   font-weight: 800;
@@ -117,8 +118,8 @@ header h1 {
 }
 
 #holeInfo {
-  font-size: 20px;
-  margin-bottom: 20px;
+  font-size: 16px;
+  margin-bottom: 15px;
   font-weight: bold;
 }
 
@@ -165,7 +166,7 @@ h3 {
   border-color: #2e8b57;
 }
 
-/* APPLY + SKIP BUTTONS (B1) */
+/* APPLY + SKIP BUTTONS */
 #applyBtn, #skipBtn {
   margin: 10px 5px 0;
   padding: 12px 25px;
@@ -196,9 +197,9 @@ h3 {
 }
 
 #gameOver {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: bold;
-  margin-top: 25px;
+  margin-top: 20px;
   color: #333;
 }
 
@@ -268,31 +269,42 @@ h3 {
 
   <div class="menuOption" onclick="startGame('daily')">
     <span class="label">Daily Challenge</span><span class="tag">NEW</span>
-    <p class="desc">Same numbers for everyone today. Compete on the global leaderboard.</p>
+    <p class="desc">Same course for everyone today. Compete on the leaderboard.</p>
   </div>
 
   <div class="menuOption" onclick="startGame('practice')">
     <span class="label">Daily Practice</span>
-    <p class="desc">Today's challenge with undo — practice without pressure.</p>
+    <p class="desc">Today's course again — practice without leaderboard pressure.</p>
   </div>
 
   <div class="menuOption" onclick="startGame('free')">
     <span class="label">Free Play</span>
-    <p class="desc">Choose your own 3 numbers and play at your own pace.</p>
+    <p class="desc">Random course with random numbers. Play as much as you like.</p>
   </div>
 </div>
 
 <header id="header">
-  <img class="flag" src="https://upload.wikimedia.org/wikipedia/commons/5/5f/Golf_flag_icon.png">
+  <img class="flag" src="https://upload.wikimedia.org/wikipedia/commons/5/5f/Golf_flag_icon.png" alt="">
   <h1>Hole in Sum</h1>
 </header>
 
 <div id="game">
-  <div id="holeInfo">Hole <span id="holeNum">1</span>/9 — Strokes: <span id="strokes">0</span></div>
+  <div id="holeInfo">
+    Hole: <span id="holeNum">1</span>/9,
+    Par: <span id="parValue">3</span>,
+    Strokes this hole: <span id="holeStrokes">0</span>,
+    Score: <span id="scoreRel">E</span>
+  </div>
 
   <div class="boxRow">
-    <div class="box currentBox"><div class="value" id="currentValue"></div></div>
-    <div class="box targetBox"><div class="value" id="targetValue"></div></div>
+    <div class="box currentBox">
+      <div>Current</div>
+      <div class="value" id="currentValue"></div>
+    </div>
+    <div class="box targetBox">
+      <div>Target</div>
+      <div class="value" id="targetValue"></div>
+    </div>
   </div>
 
   <h3>Operation</h3>
@@ -341,10 +353,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-window.saveScore = function(name, strokes) {
+window.saveScore = function(name, strokes, parScore) {
   const today = new Date().toISOString().split("T")[0];
   const scoreRef = ref(db, "leaderboard/" + today + "/" + name);
-  return set(scoreRef, { strokes, timestamp: Date.now() });
+  return set(scoreRef, { strokes, parScore, timestamp: Date.now() });
 };
 
 window.loadLeaderboard = async function () {
@@ -358,11 +370,14 @@ window.loadLeaderboard = async function () {
 
   const data = snapshot.val();
   const sorted = Object.entries(data)
-    .map(([name, entry]) => ({ name, strokes: entry.strokes }))
-    .sort((a, b) => a.strokes - b.strokes);
+    .map(([name, entry]) => ({ name, strokes: entry.strokes, parScore: entry.parScore ?? 0 }))
+    .sort((a, b) => a.strokes - b.strokes || a.parScore - b.parScore);
 
   document.getElementById("leaderboardList").innerHTML =
-    sorted.map(s => `<div><strong>${s.name}</strong>: ${s.strokes}</div>`).join("");
+    sorted.map(s => {
+      const parText = s.parScore === 0 ? "E" : (s.parScore > 0 ? "+" + s.parScore : s.parScore);
+      return `<div><strong>${s.name}</strong>: ${s.strokes} strokes (${parText})</div>`;
+    }).join("");
 };
 
 loadLeaderboard();
@@ -370,13 +385,18 @@ loadLeaderboard();
 
 <script>
 let hole = 1;
-let strokes = 0;
+let strokesTotal = 0;
 let current = 0;
 let target = 0;
 let selectedOp = null;
 let selectedNum = null;
 let selectedNumBtn = null;
 let numbers = [];
+let dailyCourse = [];
+let mode = "daily";
+
+let strokesAtStartOfHole = 0;
+let scoreRelativeToPar = 0;
 
 /* expose to HTML */
 window.startGame = startGame;
@@ -385,14 +405,119 @@ window.applySelection = applySelection;
 window.skipHole = skipHole;
 window.submitFinalScore = submitFinalScore;
 
-function startGame(mode) {
-  hole = 1;
-  strokes = 0;
-  numbers = [];
+/* seeded RNG for daily determinism */
+function seededRandom(seed) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return () => {
+    h += h << 13; h ^= h >>> 7;
+    h += h << 3;  h ^= h >>> 17;
+    h += h << 5;
+    return (h >>> 0) / 4294967295;
+  };
+}
 
-  while (numbers.length < 3) {
-    let n = Math.floor(Math.random() * 8) + 2;
-    if (!numbers.includes(n)) numbers.push(n);
+function getDailySeed() {
+  return new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+}
+
+function generateDailyNumbers() {
+  const rand = seededRandom(getDailySeed());
+  const nums = new Set();
+  while (nums.size < 3) {
+    const n = Math.floor(rand() * 8) + 2; // 2–9
+    nums.add(n);
+  }
+  return [...nums];
+}
+
+function generateSolvableHole(nums, rand) {
+  let attempts = 0;
+  while (attempts < 200) {
+    attempts++;
+
+    const start = Math.floor(rand() * 91) + 10;
+
+    let steps = rand() < 0.7
+      ? (rand() < 0.5 ? 3 : 4)
+      : (rand() < 0.5 ? 1 : 2);
+
+    let value = start;
+    let valid = true;
+
+    for (let i = 0; i < steps; i++) {
+      const num = nums[Math.floor(rand() * nums.length)];
+      const r = Math.floor(rand() * 4);
+
+      let next;
+      if (r === 0) next = value + num;
+      else if (r === 1) next = value - num;
+      else if (r === 2) next = value * num;
+      else {
+        if (num === 0 || value % num !== 0) { valid = false; break; }
+        next = value / num;
+      }
+
+      if (next <= 0 || next > 999) { valid = false; break; }
+      value = next;
+    }
+
+    if (!valid) continue;
+
+    let tgt = value;
+    if (rand() < 0.25 && tgt >= start) {
+      const lower = start - (tgt - start);
+      if (lower > 0) tgt = lower;
+    }
+
+    const par = steps <= 2 ? 2 : (steps === 3 ? 3 : 4);
+    return { startNumber: start, target: tgt, par, steps };
+  }
+
+  return { startNumber: 20, target: 35, par: 3, steps: 3 };
+}
+
+function generateDailyCourse(nums) {
+  const rand = seededRandom(getDailySeed());
+  const holes = [];
+  for (let i = 0; i < 9; i++) {
+    holes.push(generateSolvableHole(nums, rand));
+  }
+  return holes;
+}
+
+function generateRandomNumbers() {
+  const nums = new Set();
+  while (nums.size < 3) {
+    const n = Math.floor(Math.random() * 8) + 2;
+    nums.add(n);
+  }
+  return [...nums];
+}
+
+function generateRandomCourse(nums) {
+  const holes = [];
+  for (let i = 0; i < 9; i++) {
+    holes.push(generateSolvableHole(nums, Math.random));
+  }
+  return holes;
+}
+
+function startGame(selectedMode) {
+  mode = selectedMode;
+  hole = 1;
+  strokesTotal = 0;
+  scoreRelativeToPar = 0;
+
+  if (mode === "daily" || mode === "practice") {
+    numbers = generateDailyNumbers();
+    dailyCourse = generateDailyCourse(numbers);
+  } else {
+    numbers = generateRandomNumbers();
+    dailyCourse = generateRandomCourse(numbers);
   }
 
   document.getElementById("openingScreen").style.display = "none";
@@ -406,67 +531,43 @@ function startGame(mode) {
   newHole();
 }
 
-function generateSolvableHole(nums) {
-  const start = Math.floor(Math.random() * 91) + 10;
-
-  let steps = Math.random() < 0.7
-    ? (Math.random() < 0.5 ? 3 : 4)
-    : (Math.random() < 0.5 ? 1 : 2);
-
-  let value = start;
-
-  for (let i = 0; i < steps; i++) {
-    const num = nums[Math.floor(Math.random() * nums.length)];
-    const r = Math.floor(Math.random() * 4);
-
-    let next;
-    if (r === 0) next = value + num;
-    else if (r === 1) next = value - num;
-    else if (r === 2) next = value * num;
-    else next = (num !== 0 && value % num === 0) ? value / num : null;
-
-    if (next === null || next <= 0 || next > 999) return generateSolvableHole(nums);
-
-    value = next;
-  }
-
-  let tgt = value;
-
-  if (Math.random() < 0.25 && tgt >= start) {
-    const lower = start - (tgt - start);
-    if (lower > 0) tgt = lower;
-  }
-
-  return { startNumber: start, target: tgt };
-}
-
 function newHole() {
   if (hole > 9) {
     endGame();
     return;
   }
 
-  document.getElementById("holeNum").textContent = hole;
-  document.getElementById("strokes").textContent = strokes;
-
-  const holeData = generateSolvableHole(numbers);
+  const holeData = dailyCourse[hole - 1];
   current = holeData.startNumber;
   target = holeData.target;
 
+  strokesAtStartOfHole = strokesTotal;
+
+  document.getElementById("holeNum").textContent = hole;
+  document.getElementById("parValue").textContent = holeData.par;
   document.getElementById("currentValue").textContent = current;
   document.getElementById("targetValue").textContent = target;
+  document.getElementById("holeStrokes").textContent = 0;
+  updateScoreDisplay();
 
   clearSelections();
   renderNumbers();
 }
 
 function endGame() {
-  document.getElementById("gameOver").textContent =
-    "Game Over — Total strokes: " + strokes;
+  const scoreText =
+    scoreRelativeToPar === 0 ? "E" :
+    scoreRelativeToPar > 0 ? "+" + scoreRelativeToPar :
+    scoreRelativeToPar;
+
+  document.getElementById("gameOver").innerHTML =
+    `Game Over — Total strokes: ${strokesTotal}<br>Score: ${scoreText}`;
 
   document.querySelectorAll("#game button").forEach(btn => btn.disabled = true);
 
-  document.getElementById("namePopup").style.display = "block";
+  if (mode === "daily") {
+    document.getElementById("namePopup").style.display = "block";
+  }
 }
 
 function clearSelections() {
@@ -474,7 +575,7 @@ function clearSelections() {
   selectedNum = null;
 
   document.querySelectorAll(".opBtn").forEach(btn => btn.classList.remove("selected"));
-  if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
+  document.querySelectorAll("#nums button").forEach(btn => btn.classList.remove("selected"));
 
   selectedNumBtn = null;
 
@@ -539,6 +640,14 @@ function updateApplyState() {
   applyBtn.classList.add("ready");
 }
 
+function updateScoreDisplay() {
+  const scoreText =
+    scoreRelativeToPar === 0 ? "E" :
+    scoreRelativeToPar > 0 ? "+" + scoreRelativeToPar :
+    scoreRelativeToPar;
+  document.getElementById("scoreRel").textContent = scoreText;
+}
+
 function applySelection() {
   if (!selectedOp || !selectedNum) {
     alert("Choose an operation and a number first");
@@ -562,22 +671,36 @@ function applySelection() {
     return;
   }
 
-  strokes++;
+  strokesTotal++;
   current = result;
 
-  document.getElementById("strokes").textContent = strokes;
+  const strokesThisHole = strokesTotal - strokesAtStartOfHole;
+
+  document.getElementById("holeStrokes").textContent = strokesThisHole;
   document.getElementById("currentValue").textContent = current;
 
   clearSelections();
 
   if (current === target) {
+    const par = dailyCourse[hole - 1].par;
+    const holeScore = strokesThisHole - par;
+    scoreRelativeToPar += holeScore;
+    updateScoreDisplay();
     hole++;
     newHole();
   }
 }
 
 function skipHole() {
-  strokes += 10;
+  strokesTotal += 10;
+  const strokesThisHole = strokesTotal - strokesAtStartOfHole;
+  document.getElementById("holeStrokes").textContent = strokesThisHole;
+
+  const par = dailyCourse[hole - 1].par;
+  const holeScore = strokesThisHole - par;
+  scoreRelativeToPar += holeScore;
+  updateScoreDisplay();
+
   hole++;
   newHole();
 }
@@ -589,7 +712,9 @@ function submitFinalScore() {
     return;
   }
 
-  saveScore(name, strokes).then(() => {
+  const parScore = scoreRelativeToPar;
+
+  saveScore(name, strokesTotal, parScore).then(() => {
     document.getElementById("namePopup").style.display = "none";
     loadLeaderboard();
   });
