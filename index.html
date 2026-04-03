@@ -6,7 +6,6 @@
 <link rel="icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/5/5f/Golf_flag_icon.png">
 
 <style>
-/* BODY */
 body {
   font-family: Arial, sans-serif;
   display: flex;
@@ -142,7 +141,7 @@ header h1 {
 }
 
 .currentBox { background:#ffd9a6; color:#a65300; }
-.targetBox { background:#b6f7a5; color:#0b4f0b; }
+.targetBox  { background:#b6f7a5; color:#0b4f0b; }
 
 .value { font-size: 48px; color:black; }
 
@@ -166,7 +165,7 @@ h3 {
   border-color: #2e8b57;
 }
 
-/* APPLY + SKIP BUTTONS */
+/* APPLY + SKIP BUTTONS (B1) */
 #applyBtn, #skipBtn {
   margin: 10px 5px 0;
   padding: 12px 25px;
@@ -263,7 +262,6 @@ h3 {
 
 <body>
 
-<!-- OPENING SCREEN -->
 <div id="openingScreen">
   <h1 class="title">Math Golf</h1>
   <p class="subtitle">Combine your numbers with +, −, ×, ÷ to hit the target in as few strokes as possible.</p>
@@ -284,13 +282,11 @@ h3 {
   </div>
 </div>
 
-<!-- HEADER -->
 <header id="header">
   <img class="flag" src="https://upload.wikimedia.org/wikipedia/commons/5/5f/Golf_flag_icon.png">
   <h1>Hole in Sum</h1>
 </header>
 
-<!-- GAME -->
 <div id="game">
   <div id="holeInfo">Hole <span id="holeNum">1</span>/9 — Strokes: <span id="strokes">0</span></div>
 
@@ -316,20 +312,17 @@ h3 {
   <div id="gameOver"></div>
 </div>
 
-<!-- LEADERBOARD -->
 <div id="leaderboard">
   <h2>Today's Leaderboard</h2>
   <div id="leaderboardList">Loading…</div>
 </div>
 
-<!-- NAME POPUP -->
 <div id="namePopup">
   <h3>Enter your first name</h3>
   <input id="playerNameInput" maxlength="20">
   <button onclick="submitFinalScore()">Submit</button>
 </div>
 
-<!-- FIREBASE SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
@@ -375,9 +368,7 @@ window.loadLeaderboard = async function () {
 loadLeaderboard();
 </script>
 
-<!-- GAME LOGIC -->
 <script>
-/* GLOBAL GAME STATE */
 let hole = 1;
 let strokes = 0;
 let current = 0;
@@ -385,10 +376,15 @@ let target = 0;
 let selectedOp = null;
 let selectedNum = null;
 let selectedNumBtn = null;
-
 let numbers = [];
 
-/* START GAME */
+/* expose to HTML */
+window.startGame = startGame;
+window.selectOp = selectOp;
+window.applySelection = applySelection;
+window.skipHole = skipHole;
+window.submitFinalScore = submitFinalScore;
+
 function startGame(mode) {
   hole = 1;
   strokes = 0;
@@ -410,7 +406,6 @@ function startGame(mode) {
   newHole();
 }
 
-/* SOLVABLE HOLE GENERATOR */
 function generateSolvableHole(nums) {
   const start = Math.floor(Math.random() * 91) + 10;
 
@@ -445,7 +440,6 @@ function generateSolvableHole(nums) {
   return { startNumber: start, target: tgt };
 }
 
-/* NEW HOLE */
 function newHole() {
   if (hole > 9) {
     endGame();
@@ -466,7 +460,6 @@ function newHole() {
   renderNumbers();
 }
 
-/* END GAME */
 function endGame() {
   document.getElementById("gameOver").textContent =
     "Game Over — Total strokes: " + strokes;
@@ -476,7 +469,6 @@ function endGame() {
   document.getElementById("namePopup").style.display = "block";
 }
 
-/* CLEAR SELECTIONS */
 function clearSelections() {
   selectedOp = null;
   selectedNum = null;
@@ -490,7 +482,6 @@ function clearSelections() {
   applyBtn.classList.remove("ready", "error");
 }
 
-/* SELECT OPERATOR */
 function selectOp(btn, op) {
   document.querySelectorAll(".opBtn").forEach(b => b.classList.remove("selected"));
   btn.classList.add("selected");
@@ -498,7 +489,6 @@ function selectOp(btn, op) {
   updateApplyState();
 }
 
-/* RENDER NUMBERS */
 function renderNumbers() {
   const container = document.getElementById("nums");
   container.innerHTML = "";
@@ -511,7 +501,6 @@ function renderNumbers() {
   });
 }
 
-/* SELECT NUMBER */
 function selectNumber(btn, n) {
   if (selectedNumBtn) selectedNumBtn.classList.remove("selected");
 
@@ -522,7 +511,6 @@ function selectNumber(btn, n) {
   updateApplyState();
 }
 
-/* UPDATE APPLY BUTTON */
 function updateApplyState() {
   const applyBtn = document.getElementById("applyBtn");
   applyBtn.classList.remove("ready", "error");
@@ -551,19 +539,6 @@ function updateApplyState() {
   applyBtn.classList.add("ready");
 }
 
-/* APPLY SELECTION */
-function applySelection() {
-  if (!selectedOp || !selectedNum) {
-    alert("Choose an operation and a number first");
-    return;
-  }
-
-  if (selectedOp === "/" && current %You’re *so* close — and I can see exactly what happened.
-
-Your message cuts off **mid‑function**:
-
-```js
-if (selectedOp === "/" && current %
 function applySelection() {
   if (!selectedOp || !selectedNum) {
     alert("Choose an operation and a number first");
@@ -620,6 +595,6 @@ function submitFinalScore() {
   });
 }
 </script>
+
 </body>
 </html>
-
