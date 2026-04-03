@@ -564,3 +564,62 @@ Your message cuts off **mid‑function**:
 
 ```js
 if (selectedOp === "/" && current %
+function applySelection() {
+  if (!selectedOp || !selectedNum) {
+    alert("Choose an operation and a number first");
+    return;
+  }
+
+  if (selectedOp === "/" && current % selectedNum !== 0) {
+    alert("Can't divide evenly");
+    return;
+  }
+
+  let result = current;
+
+  if (selectedOp === "+") result = current + selectedNum;
+  else if (selectedOp === "-") result = current - selectedNum;
+  else if (selectedOp === "*") result = current * selectedNum;
+  else if (selectedOp === "/") result = current / selectedNum;
+
+  if (result <= 0) {
+    alert("Result must be above 0");
+    return;
+  }
+
+  strokes++;
+  current = result;
+
+  document.getElementById("strokes").textContent = strokes;
+  document.getElementById("currentValue").textContent = current;
+
+  clearSelections();
+
+  if (current === target) {
+    hole++;
+    newHole();
+  }
+}
+
+function skipHole() {
+  strokes += 10;
+  hole++;
+  newHole();
+}
+
+function submitFinalScore() {
+  const name = document.getElementById("playerNameInput").value.trim();
+  if (!name) {
+    alert("Please enter your first name");
+    return;
+  }
+
+  saveScore(name, strokes).then(() => {
+    document.getElementById("namePopup").style.display = "none";
+    loadLeaderboard();
+  });
+}
+</script>
+</body>
+</html>
+
