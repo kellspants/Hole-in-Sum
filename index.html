@@ -166,8 +166,8 @@ h3 {
   border-color: #2e8b57;
 }
 
-/* APPLY + SKIP BUTTONS */
-#applyBtn, #skipBtn {
+/* APPLY + SKIP + UNDO BUTTONS */
+#applyBtn, #skipBtn, #undoBtn {
   margin: 10px 5px 0;
   padding: 12px 25px;
   font-size: 18px;
@@ -194,6 +194,11 @@ h3 {
 #skipBtn {
   background: #ffcc66;
   color: #663c00;
+}
+
+#undoBtn {
+  background: #8888ff;
+  color: white;
 }
 
 #gameOver {
@@ -274,7 +279,7 @@ h3 {
 
   <div class="menuOption" onclick="startGame('practice')">
     <span class="label">Daily Practice</span>
-    <p class="desc">Today's course again — practice without leaderboard pressure.</p>
+    <p class="desc">Today's course again — practice with undo, no leaderboard.</p>
   </div>
 
   <div class="menuOption" onclick="startGame('free')">
@@ -320,6 +325,7 @@ h3 {
 
   <button id="applyBtn" onclick="applySelection()">Apply</button>
   <button id="skipBtn" onclick="skipHole()">Skip Hole (+10)</button>
+  <button id="undoBtn" onclick="undoMove()" style="display:none;">Undo</button>
 
   <div id="gameOver"></div>
 </div>
@@ -397,6 +403,7 @@ let mode = "daily";
 
 let strokesAtStartOfHole = 0;
 let scoreRelativeToPar = 0;
+let history = [];
 
 /* expose to HTML */
 window.startGame = startGame;
@@ -404,6 +411,7 @@ window.selectOp = selectOp;
 window.applySelection = applySelection;
 window.skipHole = skipHole;
 window.submitFinalScore = submitFinalScore;
+window.undoMove = undoMove;
 
 /* seeded RNG for daily determinism */
 function seededRandom(seed) {
@@ -468,10 +476,13 @@ function generateSolvableHole(nums, rand) {
     if (!valid) continue;
 
     let tgt = value;
+
     if (rand() < 0.25 && tgt >= start) {
       const lower = start - (tgt - start);
       if (lower > 0) tgt = lower;
     }
+
+    if (tgt === start) continue;
 
     const par = steps <= 2 ? 2 : (steps === 3 ? 3 : 4);
     return { startNumber: start, target: tgt, par, steps };
@@ -511,6 +522,7 @@ function startGame(selectedMode) {
   hole = 1;
   strokesTotal = 0;
   scoreRelativeToPar = 0;
+  history = [];
 
   if (mode === "daily" || mode === "practice") {
     numbers = generateDailyNumbers();
@@ -528,6 +540,9 @@ function startGame(selectedMode) {
   document.getElementById("gameOver").textContent = "";
   document.querySelectorAll("#game button").forEach(btn => btn.disabled = false);
 
+  document.getElementById("undoBtn").style.display =
+    mode === "practice" ? "inline-block" : "none";
+
   newHole();
 }
 
@@ -542,6 +557,7 @@ function newHole() {
   target = holeData.target;
 
   strokesAtStartOfHole = strokesTotal;
+  history = [];
 
   document.getElementById("holeNum").textContent = hole;
   document.getElementById("parValue").textContent = holeData.par;
@@ -659,6 +675,15 @@ function applySelection() {
     return;
   }
 
+  if (mode === "practice") {
+    history.push({
+      current,
+      strokesTotal,
+      scoreRelativeToPar,
+      strokesAtStartOfHole
+    });
+  }
+
   let result = current;
 
   if (selectedOp === "+") result = current + selectedNum;
@@ -686,12 +711,22 @@ function applySelection() {
     const holeScore = strokesThisHole - par;
     scoreRelativeToPar += holeScore;
     updateScoreDisplay();
+    history = [];
     hole++;
     newHole();
   }
 }
 
 function skipHole() {
+  if (mode === "practice") {
+    history.push({
+      current,
+      strokesTotal,
+      scoreRelativeToPar,
+      strokesAtStartOfHole
+    });
+  }
+
   strokesTotal += 10;
   const strokesThisHole = strokesTotal - strokesAtStartOfHole;
   document.getElementById("holeStrokes").textContent = strokesThisHole;
@@ -701,8 +736,35 @@ function skipHole() {
   scoreRelativeToPar += holeScore;
   updateScoreDisplay();
 
+  history = [];
   hole++;
   newHole();
+}
+
+function undoMove() {
+  if (mode !== "practice") return;
+  if (history.length === 0) return;
+
+  const prev = history.pop();
+
+  current = prev.current;
+  strokesTotal = prev.strokesTotal;
+  scoreRelativeToPar = prev.scoreRelativeToPar;
+  strokesAtStartOfHole = prev.strokesAtStartOfHole;
+
+  const strokesThisHole = strokesTotal - strokesAtStartOfHole;
+
+  document.getElementById("currentValue").textContent = current;
+  document.getElementById("holeStrokes").textContent = strokesThisHole;
+
+  const scoreText =
+    scoreRelativeToPar === 0 ? "E" :
+    scoreRelativeToPar > 0 ? "+" + scoreRelativeToPar :
+    scoreRelativeToPar;
+
+  document.getElementById("scoreRel").textContent = scoreText;
+
+  clearSelections();
 }
 
 function submitFinalScore() {
